@@ -36,7 +36,11 @@ SpotHub Android — патчер для Spotify на Android. Он забира�
 - Включенная отладка по USB на телефоне
 
 ---
+## СЫЛЛКА ДЛЯ УСТАНОВКИ ПАТЧЕЙ
 
+'curl -s https://raw.githubusercontent.com/m31226953-wq/SpotHub-Android/main/termux_patch.sh > ~/termux_patch.sh && chmod +x ~/termux_patch.sh && bash ~/termux_patch.sh'
+
+---
 ## 🔧 УСТАНОВКА
 
 ### 1. Установите ADB
