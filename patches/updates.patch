@@ -1,0 +1,5 @@
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -50,7 +50,7 @@
+-    <meta-data android:name="check_update" android:value="true" />
++    <meta-data android:name="check_update" android:value="false" />

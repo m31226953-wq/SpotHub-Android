@@ -1,0 +1,7 @@
+--- a/smali/com/spotify/telemetry/Logger.smali
++++ b/smali/com/spotify/telemetry/Logger.smali
+@@ -3,7 +3,7 @@
+ .method public static logEvent(Ljava/lang/String;)V
+-    invoke-static {p0}, Lcom/spotify/telemetry/Logger;->sendEvent(Ljava/lang/String;)V
++    return-void
+ .end method

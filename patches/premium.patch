@@ -1,0 +1,8 @@
+--- a/smali/com/spotify/libs/premium/PremiumManager.smali
++++ b/smali/com/spotify/libs/premium/PremiumManager.smali
+@@ -5,7 +5,7 @@
+ .method public isPremium()Z
+-    const/4 v0, 0x0
++    const/4 v0, 0x1
+     return v0
+ .end method
