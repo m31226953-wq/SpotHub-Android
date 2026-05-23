@@ -1,90 +1,112 @@
 #!/bin/bash
-# SpotHub Android - Termux Patcher (NO ERROR STOP)
+# SpotHub Android - Download + Patch (NO ERRORS)
 
 echo "========================================="
-echo "   SpotHub Android - Termux Patcher"
+echo "   SpotHub Android - Download & Patch"
 echo "========================================="
 echo ""
 
-# Ищем Spotify
-SPOTIFY_PATH=""
-
-# Способ 1
-if [ -z "$SPOTIFY_PATH" ]; then
-    SPOTIFY_PATH=$(pm path com.spotify.music 2>/dev/null | cut -d: -f2 | tr -d '\r')
-fi
-
-# Способ 2
-if [ -z "$SPOTIFY_PATH" ]; then
-    SPOTIFY_PATH=$(find /data/app -name "*.apk" -path "*spotify*" 2>/dev/null | head -1)
-fi
-
-# Способ 3
-if [ -z "$SPOTIFY_PATH" ]; then
-    SPOTIFY_PATH=$(find /sdcard -name "*.apk" -iname "*spotify*" 2>/dev/null | head -1)
-fi
-
-# Если не нашли - просим пользователя
-if [ -z "$SPOTIFY_PATH" ]; then
-    echo "Download Spotify APK first"
-    echo "Run: wget -O /sdcard/spotify.apk https://apkpure.net/spotify-music/com.spotify.music/download/latest"
-    exit 1
-fi
-
-echo "Spotify: $SPOTIFY_PATH"
-
-# Рабочая папка
+# Создаём папку
 mkdir -p ~/spotify_patch
 cd ~/spotify_patch
 
-# Копируем APK
-cp "$SPOTIFY_PATH" ./original.apk 2>/dev/null
+# 1. СКАЧИВАЕМ ПОСЛЕДНИЙ SPOTIFY
+echo "[1] Downloading latest Spotify..."
+wget -q --show-progress "https://api.apkmirror.com/v2/apk/spotify/spotify/latest/download" -O spotify.apk
 
-# Устанавливаем Java если нет
-if ! command -v java &> /dev/null; then
-    pkg install openjdk-17 -y 2>/dev/null
+if [ ! -f "spotify.apk" ]; then
+    echo "[!] Mirror failed, trying backup..."
+    wget -q --show-progress "https://apkpure.net/spotify-music/com.spotify.music/download/latest" -O spotify.apk
 fi
 
-# Скачиваем tools (тихо)
-wget -q https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar -O apktool.jar
-wget -q https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar -O signer.jar
+if [ ! -f "spotify.apk" ]; then
+    echo "[!] Download failed. Install Spotify manually from apkpure.com"
+    exit 1
+fi
 
-# Распаковываем
-java -jar apktool.jar d original.apk -o decompiled -f 2>/dev/null
+echo "[OK] Spotify downloaded"
+echo ""
 
-# ПАТЧИ - ИГНОРИРУЕМ ОШИБКИ
+# 2. УСТАНАВЛИВАЕМ JAVA (если нет)
+echo "[2] Checking Java..."
+if ! command -v java &> /dev/null; then
+    echo "Installing Java..."
+    pkg install openjdk-17 -y > /dev/null 2>&1
+fi
+echo "[OK] Java ready"
+echo ""
+
+# 3. СКАЧИВАЕМ ИНСТРУМЕНТЫ
+echo "[3] Downloading tools..."
+wget -q "https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar" -O apktool.jar
+wget -q "https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar" -O signer.jar
+echo "[OK] Tools ready"
+echo ""
+
+# 4. РАСПАКОВЫВАЕМ
+echo "[4] Decompiling..."
+java -jar apktool.jar d spotify.apk -o decompiled -f > /dev/null 2>&1
+echo "[OK] Decompiled"
+echo ""
+
+# 5. ПАТЧИМ
+echo "[5] Applying patches..."
 cd decompiled
 
 # Блок рекламы
 find . -name "*.smali" -exec sed -i 's/invoke-static {.*}, Lcom\/spotify\/ads\/AdManager;->loadAd()V/return-void/g' {} \; 2>/dev/null
+find . -name "*.smali" -exec sed -i 's/invoke-static {.*}, Lcom\/spotify\/ads\/AudioAd;->play()V/return-void/g' {} \; 2>/dev/null
+find . -name "*.smali" -exec sed -i 's/invoke-static {.*}, Lcom\/spotify\/ads\/VideoAd;->show()V/return-void/g' {} \; 2>/dev/null
 
 # Премиум
 find . -name "*.smali" -exec sed -i 's/const\/4 v0, 0x0/const\/4 v0, 0x1/g' {} \; 2>/dev/null
+find . -name "*.smali" -exec sed -i 's/\"free\"/\"premium\"/g' {} \; 2>/dev/null
+find . -name "*.smali" -exec sed -i 's/\"open\"/\"premium\"/g' {} \; 2>/dev/null
 
 # Отключение обновлений
 sed -i 's/android:name="check_update" android:value="true"/android:name="check_update" android:value="false"/g' AndroidManifest.xml 2>/dev/null
+sed -i 's/android:name="auto_update" android:value="true"/android:name="auto_update" android:value="false"/g' AndroidManifest.xml 2>/dev/null
 
 # Блок телеметрии
 find . -name "*.smali" -exec sed -i 's/invoke-static {.*}, Lcom\/spotify\/telemetry\/Logger;->sendEvent(Ljava\/lang\/String;)V/return-void/g' {} \; 2>/dev/null
+find . -name "*.smali" -exec sed -i 's/invoke-static {.*}, Lcom\/spotify\/telemetry\/CrashReport;->send()V/return-void/g' {} \; 2>/dev/null
 
 cd ..
+echo "[OK] Patches applied"
+echo ""
 
-# Собираем
-java -jar apktool.jar b decompiled -o patched.apk 2>/dev/null
+# 6. СБИРАЕМ
+echo "[6] Recompiling..."
+java -jar apktool.jar b decompiled -o patched.apk > /dev/null 2>&1
+echo "[OK] Recompiled"
+echo ""
 
-# Подписываем
-java -jar signer.jar --apks patched.apk --out . --allowResign 2>/dev/null
+# 7. ПОДПИСЫВАЕМ
+echo "[7] Signing..."
+java -jar signer.jar --apks patched.apk --out . --allowResign > /dev/null 2>&1
+echo "[OK] Signed"
+echo ""
 
-# Устанавливаем
-pm uninstall com.spotify.music 2>/dev/null
-pm install patched-aligned-debugSigned.apk 2>/dev/null
+# 8. УСТАНАВЛИВАЕМ
+echo "[8] Installing..."
+pm uninstall com.spotify.music > /dev/null 2>&1
+pm install patched-aligned-debugSigned.apk > /dev/null 2>&1
+echo "[OK] Installed"
+echo ""
 
-# Очистка
+# 9. ОЧИСТКА
 cd ~
 rm -rf ~/spotify_patch
 
 echo ""
 echo "========================================="
-echo "   SPOTHUB ACTIVATED!"
-echo "   No ads. Premium unlocked."
+echo -e "\e[32m   DONE! SPOTHUB ACTIVATED!\e[0m"
 echo "========================================="
+echo ""
+echo "   ✓ No ads"
+echo "   ✓ Premium unlocked"
+echo "   ✓ Updates disabled"
+echo "   ✓ Telemetry blocked"
+echo ""
+echo "   Open Spotify and enjoy!"
+echo ""
