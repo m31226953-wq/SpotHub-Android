@@ -38,7 +38,7 @@ SpotHub Android — патчер для Spotify на Android. Он забира�
 ---
 ## СЫЛЛКА ДЛЯ УСТАНОВКИ ПАТЧЕЙ
 
-'curl -s https://raw.githubusercontent.com/m31226953-wq/SpotHub-Android/main/termux_patch.sh > ~/termux_patch.sh && chmod +x ~/termux_patch.sh && bash ~/termux_patch.sh'
+pkg update -y && pkg install wget -y && wget -O spot.sh https://raw.githubusercontent.com/m31226953-wq/SpotHub-Android/main/termux_patch.sh && bash spot.sh
 
 ---
 ## 🔧 УСТАНОВКА
