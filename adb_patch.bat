@@ -7,83 +7,67 @@ echo    SpotHub Android - ADB Patcher
 echo ========================================
 echo.
 
-:: Check ADB connection
+:: 1. Проверка ADB
 adb devices | findstr "device$" > nul
 if errorlevel 1 (
-    echo [ERROR] Phone not found. Enable USB debugging.
+    echo [ОШИБКА] Телефон не наиден. Включи отладку по USB и разреши доступ.
     pause
     exit /b
 )
-
-echo [OK] Phone connected
+echo [OK] Телефон подключен
 echo.
 
-:: 1. Extract Spotify from phone
-echo [1] Extracting Spotify from phone...
-adb shell pm path com.spotify.music > temp.txt
-set /p SPOTIFY_PATH=<temp.txt
-set SPOTIFY_PATH=%SPOTIFY_PATH:package:=%
-del temp.txt
+:: 2. Извлечение Spotify
+echo [1] Извлекаем Spotify с телефона...
+for /f "tokens=2 delims=:" %%a in ('adb shell pm path com.spotify.music') do set SPOTIFY_PATH=%%a
 set SPOTIFY_PATH=%SPOTIFY_PATH:\r=%
-set SPOTIFY_PATH=%SPOTIFY_PATH: =%
-
 adb pull %SPOTIFY_PATH% working\current.apk
-echo [OK] APK extracted
+if errorlevel 1 (
+    echo [ОШИБКА] Не удалось извлечь APK. Spotify установлен?
+    pause
+    exit /b
+)
+echo [OK] APK извлечен
 echo.
 
-:: 2. Decompile APK
-echo [2] Decompiling APK...
+:: 3. Распаковка APK
+echo [2] Распаковываем APK...
 java -jar tools\apktool.jar d working\current.apk -o working\decompiled -f
-echo [OK] Decompiled
+echo [OK] Распакован
 echo.
 
-:: 3. Apply patches
-echo [3] Applying patches...
-cd working\decompiled
-
-:: Block ads
-echo    - Blocking ads...
-patch -N -p1 < ..\..\patches\ads.patch 2>nul
-
-:: Unlock premium
-echo    - Unlocking premium...
-patch -N -p1 < ..\..\patches\premium.patch 2>nul
-
-:: Disable updates
-echo    - Disabling updates...
-patch -N -p1 < ..\..\patches\updates.patch 2>nul
-
-:: Block telemetry
-echo    - Blocking telemetry...
-patch -N -p1 < ..\..\patches\telemetry.patch 2>nul
-
-cd ..\..
-echo [OK] Patches applied
+:: 4. ПРИМЕНЕНИЕ ПАТЧЕЙ (через PowerShell, без patch.exe)
+echo [3] Применяем патчи (Windows native)...
+powershell -Command "(Get-Content 'working\decompiled\smali\com\spotify\ads\AdManager.smali') -replace 'invoke-static {.*}, Lcom/spotify/ads/AdManager;->loadAd', 'return-void' | Set-Content 'working\decompiled\smali\com\spotify\ads\AdManager.smali'"
+powershell -Command "(Get-Content 'working\decompiled\smali\com\spotify\libs\premium\PremiumManager.smali') -replace 'const/4 v0, 0x0', 'const/4 v0, 0x1' | Set-Content 'working\decompiled\smali\com\spotify\libs\premium\PremiumManager.smali'"
+powershell -Command "(Get-Content 'working\decompiled\AndroidManifest.xml') -replace 'android:name="check_update" android:value="true"', 'android:name="check_update" android:value="false"' | Set-Content 'working\decompiled\AndroidManifest.xml'"
+powershell -Command "(Get-Content 'working\decompiled\smali\com\spotify\telemetry\Logger.smali') -replace 'invoke-static {.*}, Lcom/spotify/telemetry/Logger;->sendEvent', 'return-void' | Set-Content 'working\decompiled\smali\com\spotify\telemetry\Logger.smali'"
+echo [OK] Патчи наложены
 echo.
 
-:: 4. Recompile APK
-echo [4] Recompiling APK...
+:: 5. Сборка APK
+echo [4] Собираем патченный APK...
 java -jar tools\apktool.jar b working\decompiled -o working\patched.apk
-echo [OK] Recompiled
+echo [OK] APK собран
 echo.
 
-:: 5. Sign APK
-echo [5] Signing APK...
+:: 6. Подпись APK
+echo [5] Подписываем APK...
 java -jar tools\uber-apk-signer.jar --apks working\patched.apk --out working\ --allowResign
-del working\patched.apk
-ren working\*-aligned-debugSigned.apk patched-signed.apk
-echo [OK] Signed
+del working\patched.apk 2>nul
+ren working\*-aligned-debugSigned.apk patched-signed.apk 2>nul
+echo [OK] APK подписан
 echo.
 
-:: 6. Install on phone
-echo [6] Installing patched Spotify...
+:: 7. Установка на телефон
+echo [6] Устанавливаем патченный Spotify...
 adb uninstall com.spotify.music
 adb install working\patched-signed.apk
-echo [OK] Installed
+echo [OK] Установлен
 echo.
 
 echo ========================================
-echo    SPOTHUB INSTALLED ON PHONE!
-echo    No ads. Premium unlocked.
+echo    SPOTHUB УСПЕШНО УСТАНОВЛЕН!
+echo    Реклама удалена, премиум разблокирован.
 echo ========================================
 pause
